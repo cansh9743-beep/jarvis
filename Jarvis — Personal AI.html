@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jarvis</title>
+<style>
+:root{--bg:#060810;--surface:#0d1118;--panel:#111827;--border:#1f2937;--accent:#6366f1;--acc-lo:#1e1b4b;--acc-mid:#312e81;--green:#34d399;--green-lo:#064e3b;--dim:#6b7280;--text:#f1f5f9;--mono:ui-monospace,Menlo,monospace;--sans:system-ui,-apple-system,sans-serif}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex;flex-direction:column;height:100vh;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.topbar{flex-shrink:0;height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 1.1rem;gap:.85rem}
+.orb{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#818cf8,#4338ca 60%,#1e1b4b);box-shadow:0 0 14px #6366f144}
+.title{font-size:.95rem;font-weight:700}
+.sub{font-family:var(--mono);font-size:.65rem;color:var(--dim)}
+.spacer{flex:1}
+.pill{font-family:var(--mono);font-size:.62rem;font-weight:600;background:var(--green-lo);color:var(--green);border:1px solid #065f46;border-radius:999px;padding:.22rem .65rem}
+.chat{flex:1;overflow-y:auto;padding:1.5rem 1.1rem}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:.9rem}
+.empty{text-align:center;color:var(--dim);font-size:.85rem;padding:3rem 1rem;line-height:1.6}
+.msg{display:flex;gap:.6rem;align-items:flex-start}
+.msg.user{flex-direction:row-reverse}
+.av{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700}
+.msg.jarvis .av{background:radial-gradient(circle at 35% 35%,#818cf8,#4338ca 60%,#1e1b4b);color:#e0e7ff}
+.msg.user .av{background:var(--panel);border:1px solid var(--border);color:var(--dim)}
+.bubble{max-width:78%;padding:.7rem .95rem;border-radius:10px;font-size:.88rem;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.msg.jarvis .bubble{background:var(--surface);border:1px solid var(--border)}
+.msg.user .bubble{background:var(--acc-lo);border:1px solid var(--acc-mid);color:#c7d2fe}
+.err{color:#fca5a5;border:1px solid #7f1d1d;background:#1a0808;border-radius:10px;padding:.6rem .85rem;font-family:var(--mono);font-size:.75rem}
+.inputbar{flex-shrink:0;background:var(--surface);border-top:1px solid var(--border);padding:.8rem 1.1rem}
+.row{max-width:760px;margin:0 auto;display:flex;gap:.6rem;align-items:flex-end}
+textarea{flex:1;resize:none;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:.65rem .9rem;color:var(--text);font:inherit;font-size:.88rem;min-height:44px;max-height:160px;outline:none}
+textarea:focus{border-color:var(--accent)}
+button.send{width:44px;height:44px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-size:1.1rem;cursor:pointer}
+button.send:disabled{opacity:.4;cursor:not-allowed}
+.hint{max-width:760px;margin:.4rem auto 0;font-family:var(--mono);font-size:.62rem;color:#4b5563;text-align:center}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="orb"></div>
+  <div><div class="title">Jarvis</div><div class="sub">OpenJarvis · simple agent</div></div>
+  <div class="spacer"></div>
+  <span class="pill" id="status">ready</span>
+</div>
+
+<div class="chat" id="chat">
+  <div class="wrap" id="wrap">
+    <div class="empty" id="empty">Hi, I'm Jarvis. Ask me anything to get started.</div>
+  </div>
+</div>
+
+<div class="inputbar">
+  <div class="row">
+    <textarea id="inp" rows="1" placeholder="Message Jarvis…"></textarea>
+    <button class="send" id="send" title="Send">➤</button>
+  </div>
+  <div class="hint">Enter to send · Shift+Enter for a new line</div>
+</div>
+
+<script>
+const SYSTEM = "You are Jarvis, a concise, helpful personal AI assistant from the OpenJarvis project. Answer directly, format with markdown when helpful, and build on earlier turns of the conversation.";
+
+const history = [];
+let busy = false;
+let sampleFn = null;
+
+const wrap = document.getElementById('wrap');
+const chat = document.getElementById('chat');
+const inp = document.getElementById('inp');
+const sendBtn = document.getElementById('send');
+const statusEl = document.getElementById('status');
+
+function scroll() { chat.scrollTop = chat.scrollHeight; }
+
+function addMsg(role, text) {
+  const empty = document.getElementById('empty');
+  if (empty) empty.remove();
+  const row = document.createElement('div');
+  row.className = 'msg ' + role;
+  row.innerHTML = '<div class="av">' + (role === 'user' ? 'U' : 'J') + '</div><div class="bubble"></div>';
+  row.querySelector('.bubble').textContent = text;
+  wrap.appendChild(row);
+  scroll();
+  return row.querySelector('.bubble');
+}
+
+function addError(text) {
+  const d = document.createElement('div');
+  d.className = 'err';
+  d.textContent = text;
+  wrap.appendChild(d);
+  scroll();
+}
+
+function setBusy(v) {
+  busy = v;
+  sendBtn.disabled = v;
+  inp.disabled = v;
+}
+
+async function getSample() {
+  if (sampleFn) return sampleFn;
+  if (!window.claude || typeof window.claude.use !== 'function') return null;
+  sampleFn = await window.claude.use('sample');
+  return sampleFn;
+}
+
+async function send() {
+  const text = inp.value.trim();
+  if (!text || busy) return;
+  inp.value = '';
+  setBusy(true);
+  addMsg('user', text);
+  history.push({ role: 'user', content: text });
+
+  const bubble = addMsg('jarvis', 'Thinking…');
+  try {
+    const sample = await getSample();
+    if (!sample) {
+      bubble.parentElement.remove();
+      addError('Jarvis cannot reach Claude from this page. Open it in claude.ai, then try again.');
+      history.pop();
+      return;
+    }
+    // Memoryless: send the instructions and the full history each time.
+    const input = [
+      { role: 'user', content: 'Instructions: ' + SYSTEM },
+      { role: 'assistant', content: 'Understood.' },
+      ...history
+    ];
+    const result = await sample(input, {
+      cache: false,
+      onText: ({ text }) => { bubble.textContent = text; scroll(); }
+    });
+    const answer = result.text || '';
+    bubble.textContent = answer;
+    history.push({ role: 'assistant', content: answer });
+  } catch (e) {
+    bubble.parentElement.remove();
+    history.pop();
+    if (e && e.code === 'not_granted') {
+      addError('Permission was declined, so Jarvis cannot answer. Allow it from the Permissions menu to continue.');
+    } else if (e && e.code === 'rate_limited') {
+      addError('Too many requests right now. Wait a moment and try again.');
+    } else {
+      addError('Something went wrong: ' + ((e && e.message) || 'unknown error'));
+    }
+  } finally {
+    setBusy(false);
+    inp.focus();
+  }
+}
+
+sendBtn.addEventListener('click', send);
+inp.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+</script>
+</body>
+</html>
