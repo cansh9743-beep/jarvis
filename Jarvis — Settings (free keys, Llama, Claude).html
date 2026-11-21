@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jarvis</title>
+<style>
+:root{--bg:#060810;--surface:#0d1118;--panel:#111827;--border:#1f2937;--accent:#6366f1;--acc-lo:#1e1b4b;--acc-mid:#312e81;--green:#34d399;--green-lo:#064e3b;--red:#f87171;--dim:#6b7280;--text:#f1f5f9;--mono:ui-monospace,Menlo,Consolas,monospace;--sans:system-ui,-apple-system,"Segoe UI",sans-serif}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex;flex-direction:column;height:100vh;height:100dvh}
+.topbar{flex-shrink:0;min-height:54px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:.5rem .9rem;gap:.6rem;flex-wrap:wrap}
+.orb{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#818cf8,#4338ca 60%,#1e1b4b);box-shadow:0 0 14px #6366f144;flex-shrink:0}
+.title{font-size:.95rem;font-weight:700}
+.sub{font-family:var(--mono);font-size:.62rem;color:var(--dim)}
+.spacer{flex:1}
+select.inline{background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:.35rem .5rem;font:inherit;font-size:.8rem;max-width:230px}
+.pill{font-family:var(--mono);font-size:.62rem;font-weight:600;border-radius:999px;padding:.22rem .65rem;border:1px solid var(--border);color:var(--dim);white-space:nowrap}
+.pill.ok{background:var(--green-lo);color:var(--green);border-color:#065f46}
+.iconbtn{background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:.4rem .7rem;cursor:pointer;font:inherit;font-size:.8rem}
+.iconbtn:hover{border-color:var(--accent)}
+.chat{flex:1;overflow-y:auto;padding:1.4rem 1rem}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:.9rem}
+.empty{text-align:center;color:var(--dim);font-size:.88rem;padding:3rem 1rem;line-height:1.6}
+.msg{display:flex;gap:.6rem;align-items:flex-start}
+.msg.user{flex-direction:row-reverse}
+.av{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700}
+.msg.jarvis .av{background:radial-gradient(circle at 35% 35%,#818cf8,#4338ca 60%,#1e1b4b);color:#e0e7ff}
+.msg.user .av{background:var(--panel);border:1px solid var(--border);color:var(--dim)}
+.bubble{max-width:78%;padding:.7rem .95rem;border-radius:10px;font-size:.9rem;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.msg.jarvis .bubble{background:var(--surface);border:1px solid var(--border)}
+.msg.user .bubble{background:var(--acc-lo);border:1px solid var(--acc-mid);color:#c7d2fe}
+.err{color:#fca5a5;border:1px solid #7f1d1d;background:#1a0808;border-radius:10px;padding:.6rem .85rem;font-family:var(--mono);font-size:.76rem;max-width:760px;margin:0 auto;width:100%}
+.inputbar{flex-shrink:0;background:var(--surface);border-top:1px solid var(--border);padding:.8rem 1rem}
+.row{max-width:760px;margin:0 auto;display:flex;gap:.6rem;align-items:flex-end}
+textarea{flex:1;resize:none;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:.65rem .9rem;color:var(--text);font:inherit;font-size:16px;min-height:44px;max-height:160px;outline:none}
+textarea:focus{border-color:var(--accent)}
+.send{width:44px;height:44px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-size:1.1rem;cursor:pointer;flex-shrink:0}
+.send:disabled{opacity:.4;cursor:not-allowed}
+.hint{max-width:760px;margin:.4rem auto 0;font-family:var(--mono);font-size:.62rem;color:#4b5563;text-align:center}
+
+/* settings */
+.overlay{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;padding:1rem;z-index:10}
+.overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;width:100%;max-width:540px;max-height:92vh;overflow-y:auto;padding:1.2rem}
+.modal h2{font-size:1.05rem;margin-bottom:.25rem}
+.note{font-size:.76rem;color:var(--dim);line-height:1.55;margin-bottom:.6rem}
+.prov{border:1px solid var(--border);border-radius:10px;padding:.8rem .9rem;margin-top:.7rem;background:var(--panel)}
+.prov-head{display:flex;align-items:center;gap:.5rem;margin-bottom:.2rem}
+.prov-name{font-weight:600;font-size:.88rem;flex:1}
+.prov-tag{font-family:var(--mono);font-size:.6rem;color:#a5b4fc;border:1px solid var(--acc-mid);border-radius:4px;padding:.1rem .35rem}
+.prov-state{font-family:var(--mono);font-size:.62rem;color:var(--dim)}
+.prov-state.ok{color:var(--green)}
+.prov-desc{font-size:.72rem;color:var(--dim);margin-bottom:.4rem;line-height:1.5}
+label{display:block;font-size:.76rem;color:#cbd5e1;margin:.5rem 0 .25rem}
+label a{color:#818cf8;font-size:.7rem;margin-left:.3rem}
+input[type=password],input[type=text]{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.5rem .65rem;color:var(--text);font:inherit;font-size:.83rem;outline:none}
+input:focus{border-color:var(--accent)}
+.checkrow{display:flex;align-items:center;gap:.4rem;margin-top:.4rem;font-size:.76rem;color:#cbd5e1}
+.row2{display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap;align-items:center}
+.btn{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:.4rem .75rem;cursor:pointer;font:inherit;font-size:.78rem}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.danger{color:var(--red)}
+.res{font-family:var(--mono);font-size:.7rem;color:var(--dim);margin-top:.4rem;min-height:1em;word-break:break-word}
+.res.ok{color:var(--green)}
+.res.bad{color:var(--red)}
+.foot{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="orb"></div>
+  <div><div class="title">Jarvis</div><div class="sub">free-tier friendly · your keys</div></div>
+  <div class="spacer"></div>
+  <select class="inline" id="providerSel" title="Provider"></select>
+  <span class="pill" id="status">no key</span>
+  <button class="iconbtn" id="openSettings">⚙ Settings</button>
+</div>
+
+<div class="chat" id="chat">
+  <div class="wrap" id="wrap">
+    <div class="empty" id="empty">Hi, I'm Jarvis.<br>Open <b>⚙ Settings</b> and add a free key, for example from Google AI Studio.</div>
+  </div>
+</div>
+
+<div class="inputbar">
+  <div class="row">
+    <textarea id="inp" rows="1" placeholder="Message Jarvis…"></textarea>
+    <button class="send" id="send" title="Send">➤</button>
+  </div>
+  <div class="hint">Enter to send · Shift+Enter for a new line · keys stay in this browser only</div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" role="dialog" aria-labelledby="sTitle">
+    <h2 id="sTitle">Settings</h2>
+    <p class="note">Add keys for the providers you want. Keys are saved only in this browser and sent only to that provider. Free-tier limits and model names change, so check each provider's site if a model stops working.</p>
+
+    <div id="provList"></div>
+
+    <div class="prov">
+      <div class="prov-head"><div class="prov-name">General</div></div>
+      <label for="system">System instructions (optional)</label>
+      <input type="text" id="system" placeholder="e.g. Answer in short bullet points">
+    </div>
+
+    <div class="foot">
+      <button class="btn danger" id="clearAll">Remove all keys</button>
+      <button class="btn" id="closeSettings">Cancel</button>
+      <button class="btn primary" id="saveSettings">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORE = 'jarvis-settings-v2';
+
+// Free-tier-friendly providers first. Model lists are suggestions; any model name can be typed.
+const PROVIDERS = {
+  builtin: {
+    label: 'Claude (built-in)',
+    tag: 'NO KEY',
+    desc: 'Uses your claude.ai account. Shows up only when this page runs inside claude.ai.',
+    keyHint: '',
+    getKey: 'https://claude.ai',
+    models: ['built-in'],
+    builtin: true,
+  },
+  ollama: {
+    label: 'Llama (Ollama, on your computer)',
+    tag: 'LOCAL · FREE',
+    desc: 'Runs Llama on your own computer through Ollama. No key needed. Ollama must be running.',
+    keyHint: 'not needed',
+    getKey: 'https://ollama.com/download',
+    models: ['llama3.2:3b', 'llama3.2:1b'],
+    url: 'http://localhost:11434/v1/chat/completions',
+    noKey: true,
+  },
+  google: {
+    label: 'Gemini (Google AI Studio)',
+    tag: 'FREE TIER',
+    desc: 'Free key from Google AI Studio. Free quotas apply per model.',
+    keyHint: 'AIza…',
+    getKey: 'https://aistudio.google.com/apikey',
+    models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'],
+    native: 'google',
+  },
+  groq: {
+    label: 'Groq',
+    tag: 'FREE TIER',
+    desc: 'Free developer tier with fast open models (Llama, etc.).',
+    keyHint: 'gsk_…',
+    getKey: 'https://console.groq.com/keys',
+    models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'],
+    url: 'https://api.groq.com/openai/v1/chat/completions',
+  },
+  mistral: {
+    label: 'Mistral',
+    tag: 'FREE TIER',
+    desc: 'Free "Experiment" plan available on La Plateforme.',
+    keyHint: 'paste key',
+    getKey: 'https://console.mistral.ai/api-keys',
+    models: ['mistral-small-latest', 'open-mistral-nemo'],
+    url: 'https://api.mistral.ai/v1/chat/completions',
+  },
+  openrouter: {
+    label: 'OpenRouter',
+    tag: 'FREE MODELS',
+    desc: 'One key for many models. Models ending in ":free" cost nothing.',
+    keyHint: 'sk-or-…',
+    getKey: 'https://openrouter.ai/keys',
+    models: ['meta-llama/llama-3.3-70b-instruct:free', 'google/gemma-3-27b-it:free', 'openai/gpt-oss-20b:free'],
+    url: 'https://openrouter.ai/api/v1/chat/completions',
+  },
+  anthropic: {
+    label: 'Claude (Anthropic)',
+    tag: 'PAID',
+    desc: 'Paid API. Billed per use.',
+    keyHint: 'sk-ant-…',
+    getKey: 'https://console.anthropic.com',
+    models: ['claude-sonnet-4-6', 'claude-haiku-4-5'],
+    native: 'anthropic',
+  },
+  openai: {
+    label: 'ChatGPT (OpenAI)',
+    tag: 'PAID',
+    desc: 'Paid API. Browser access may be blocked by OpenAI; OpenRouter is an alternative.',
+    keyHint: 'sk-…',
+    getKey: 'https://platform.openai.com/api-keys',
+    models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1'],
+    url: 'https://api.openai.com/v1/chat/completions',
+  },
+};
+
+const DEFAULTS = { active: 'google', system: '', keys: {}, models: {} };
+let settings = loadSettings();
+const history = [];
+let busy = false;
+
+const $ = id => document.getElementById(id);
+const wrap = $('wrap'), chat = $('chat'), inp = $('inp'), sendBtn = $('send');
+
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE) || '{}');
+    return { ...DEFAULTS, ...s, keys: { ...(s.keys || {}) }, models: { ...(s.models || {}) } };
+  } catch { return { ...DEFAULTS, keys: {}, models: {} }; }
+}
+function persist() {
+  try { localStorage.setItem(STORE, JSON.stringify(settings)); return true; }
+  catch { return false; }
+}
+function modelFor(p) { return settings.models[p] || PROVIDERS[p].models[0]; }
+function keyFor(p) { return settings.keys[p] || ''; }
+
+// Built-in Claude option: only works when this file runs inside claude.ai (no key needed).
+async function builtInAvailable() {
+  return !!(window.claude && typeof window.claude.use === 'function');
+}
+
+function buildProviderSelect() {
+  const sel = $('providerSel');
+  sel.innerHTML = '';
+  for (const [id, p] of Object.entries(PROVIDERS)) {
+    if (p.builtin && !window.claude) continue;
+    const o = document.createElement('option');
+    o.value = id;
+    o.textContent = p.label.split(' (')[0] + (p.builtin || p.noKey || keyFor(id) ? '' : ' · no key');
+    sel.appendChild(o);
+  }
+  sel.value = settings.active;
+}
+function refreshStatus() {
+  const pv = PROVIDERS[settings.active];
+  const k = (pv && (pv.builtin || pv.noKey)) ? 'ready' : keyFor(settings.active);
+  $('status').textContent = k ? 'ready · ' + modelFor(settings.active) : 'add a key';
+  $('status').className = 'pill' + (k ? ' ok' : '');
+  buildProviderSelect();
+}
+$('providerSel').onchange = e => { settings.active = e.target.value; persist(); refreshStatus(); };
+
+function scroll() { chat.scrollTop = chat.scrollHeight; }
+function addMsg(role, text) {
+  const e = $('empty'); if (e) e.remove();
+  const row = document.createElement('div');
+  row.className = 'msg ' + role;
+  row.innerHTML = '<div class="av">' + (role === 'user' ? 'U' : 'J') + '</div><div class="bubble"></div>';
+  row.querySelector('.bubble').textContent = text;
+  wrap.appendChild(row); scroll();
+  return row;
+}
+function addError(text) {
+  const d = document.createElement('div');
+  d.className = 'err'; d.textContent = text;
+  wrap.appendChild(d); scroll();
+}
+
+// ---- Settings UI ----
+function renderProviderRows(draftKeys, draftModels) {
+  const list = $('provList');
+  list.innerHTML = '';
+  for (const [id, p] of Object.entries(PROVIDERS)) {
+    if (p.builtin) continue;
+    const box = document.createElement('div');
+    box.className = 'prov';
+    box.dataset.id = id;
+    box.innerHTML = `
+      <div class="prov-head">
+        <div class="prov-name">${p.label}</div>
+        <span class="prov-tag">${p.tag}</span>
+        <span class="prov-state" data-state></span>
+      </div>
+      <div class="prov-desc">${p.desc}</div>
+      <label>API key <a href="${p.getKey}" target="_blank" rel="noopener">get a key</a></label>
+      <input type="password" autocomplete="off" spellcheck="false" placeholder="${p.keyHint}" data-key>
+      <div class="checkrow"><input type="checkbox" data-show id="show-${id}"><label for="show-${id}" style="margin:0">show key</label></div>
+      <label>Model</label>
+      <input type="text" list="dl-${id}" data-model placeholder="${p.models[0]}">
+      <datalist id="dl-${id}">${p.models.map(m => `<option value="${m}">`).join('')}</datalist>
+      <div class="row2">
+        <button class="btn" data-test>Test key</button>
+        <button class="btn danger" data-clear>Remove</button>
+      </div>
+      <div class="res" data-res></div>`;
+    list.appendChild(box);
+
+    box.querySelector('[data-key]').value = draftKeys[id] || '';
+    box.querySelector('[data-model]').value = draftModels[id] || p.models[0];
+    updateState(box, draftKeys[id]);
+
+    box.querySelector('[data-show]').onchange = e => {
+      box.querySelector('[data-key]').type = e.target.checked ? 'text' : 'password';
+    };
+    box.querySelector('[data-key]').oninput = e => updateState(box, e.target.value.trim());
+    box.querySelector('[data-clear]').onclick = () => {
+      box.querySelector('[data-key]').value = '';
+      updateState(box, '');
+      box.querySelector('[data-res]').textContent = 'Key cleared. Press Save to apply.';
+    };
+    box.querySelector('[data-test]').onclick = () => testProvider(id, box);
+  }
+}
+function updateState(box, key) {
+  const s = box.querySelector('[data-state]');
+  const pv = PROVIDERS[box.dataset.id];
+  if (pv && pv.noKey) { s.textContent = 'ready · no key needed'; s.className = 'prov-state ok'; return; }
+  s.textContent = key ? 'key entered' : 'no key';
+  s.className = 'prov-state' + (key ? ' ok' : '');
+}
+
+function openSettings() {
+  $('system').value = settings.system;
+  renderProviderRows(settings.keys, settings.models);
+  $('overlay').classList.add('open');
+}
+function closeSettings() { $('overlay').classList.remove('open'); }
+$('openSettings').onclick = openSettings;
+$('closeSettings').onclick = closeSettings;
+$('overlay').addEventListener('click', e => { if (e.target === $('overlay')) closeSettings(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSettings(); });
+
+$('saveSettings').onclick = () => {
+  const keys = {}, models = {};
+  document.querySelectorAll('#provList .prov').forEach(box => {
+    const id = box.dataset.id;
+    const k = box.querySelector('[data-key]').value.trim();
+    const m = box.querySelector('[data-model]').value.trim();
+    if (k) keys[id] = k;
+    if (m) models[id] = m;
+  });
+  settings.keys = keys;
+  settings.models = models;
+  settings.system = $('system').value.trim();
+  if (!keys[settings.active] && Object.keys(keys).length) settings.active = Object.keys(keys)[0];
+  if (!persist()) alert('Browser storage is blocked, so keys will last only for this page session.');
+  refreshStatus();
+  closeSettings();
+};
+
+$('clearAll').onclick = () => {
+  if (!confirm('Remove all saved keys from this browser?')) return;
+  settings.keys = {};
+  persist();
+  refreshStatus();
+  renderProviderRows({}, settings.models);
+};
+
+// ---- Provider calls ----
+async function parse(res) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const e = data.error;
+    const msg = (e && (e.message || e)) || res.statusText || 'request failed';
+    throw new Error(res.status + ': ' + (typeof msg === 'string' ? msg : JSON.stringify(msg)));
+  }
+  return data;
+}
+
+async function callProvider(id, key, model, messages, system) {
+  const p = PROVIDERS[id];
+
+  if (p.builtin) {
+    if (!(window.claude && typeof window.claude.use === 'function')) {
+      throw new Error('Built-in Claude is only available inside claude.ai');
+    }
+    const sample = await window.claude.use('sample');
+    const input = system
+      ? [{ role: 'user', content: 'Instructions: ' + system }, { role: 'assistant', content: 'Understood.' }, ...messages]
+      : messages;
+    const result = await sample(input, { cache: false });
+    return result.text || '';
+  }
+
+  if (id === 'anthropic') {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({ model, max_tokens: 1024, messages, ...(system ? { system } : {}) }),
+    });
+    const data = await parse(res);
+    return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  }
+
+  if (id === 'google') {
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
+      encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key);
+    const body = {
+      contents: messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+    };
+    if (system) body.systemInstruction = { parts: [{ text: system }] };
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await parse(res);
+    const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+    return parts.map(x => x.text || '').join('');
+  }
+
+  // OpenAI-compatible providers: Groq, Mistral, OpenRouter, OpenAI
+  const msgs = system ? [{ role: 'system', content: system }, ...messages] : messages;
+  const res = await fetch(p.url, {
+    method: 'POST',
+    headers: key ? { 'content-type': 'application/json', 'authorization': 'Bearer ' + key } : { 'content-type': 'application/json' },
+    body: JSON.stringify({ model, messages: msgs, max_tokens: 1024 }),
+  });
+  const data = await parse(res);
+  return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+}
+
+async function testProvider(id, box) {
+  const res = box.querySelector('[data-res]');
+  const key = box.querySelector('[data-key]').value.trim();
+  const model = box.querySelector('[data-model]').value.trim() || PROVIDERS[id].models[0];
+  if (!key && !PROVIDERS[id].noKey) { res.textContent = 'Paste a key first.'; res.className = 'res bad'; return; }
+  res.textContent = 'Testing…'; res.className = 'res';
+  try {
+    const reply = await callProvider(id, key, model, [{ role: 'user', content: 'Reply with the single word: ok' }], '');
+    res.textContent = 'Works. Replied: ' + reply.trim().slice(0, 40);
+    res.className = 'res ok';
+  } catch (e) {
+    res.textContent = 'Failed. ' + e.message;
+    res.className = 'res bad';
+  }
+}
+
+// ---- Chat ----
+async function send() {
+  const text = inp.value.trim();
+  if (!text || busy) return;
+  const p = settings.active;
+  const key = keyFor(p);
+  const pv = PROVIDERS[p];
+  if (!key && !(pv && (pv.builtin || pv.noKey))) { openSettings(); return; }
+
+  inp.value = ''; inp.style.height = 'auto';
+  busy = true; inp.disabled = true; sendBtn.disabled = true;
+
+  addMsg('user', text);
+  history.push({ role: 'user', content: text });
+  const row = addMsg('jarvis', 'Thinking…');
+  const bubble = row.querySelector('.bubble');
+
+  try {
+    const answer = await callProvider(p, key, modelFor(p), history, settings.system);
+    bubble.textContent = answer || '(empty reply)';
+    history.push({ role: 'assistant', content: answer });
+  } catch (e) {
+    row.remove();
+    history.pop();
+    let hint = '';
+    if (/^(401|403)/.test(e.message)) hint = ' Check the key and that the provider allows this model on your plan.';
+    if (/^429/.test(e.message)) hint = ' Free-tier limit reached. Wait, or choose another model or provider.';
+    if (/Failed to fetch/i.test(e.message) && PROVIDERS[p].noKey) hint = ' Ollama is not reachable. Start Ollama, and if the browser blocks it, run it with OLLAMA_ORIGINS="*".';
+    addError('Error from ' + PROVIDERS[p].label + ' — ' + e.message + hint);
+  } finally {
+    busy = false; inp.disabled = false; sendBtn.disabled = false; inp.focus();
+  }
+}
+
+sendBtn.onclick = send;
+inp.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+inp.addEventListener('input', () => {
+  inp.style.height = 'auto';
+  inp.style.height = Math.min(inp.scrollHeight, 160) + 'px';
+});
+
+if (settings.active === 'builtin' && !window.claude) settings.active = 'google';
+if (window.claude && typeof window.claude.use === 'function' && !Object.keys(settings.keys).length) settings.active = 'builtin';
+refreshStatus();
+if (!Object.keys(settings.keys).length && !(window.claude && typeof window.claude.use === 'function')) openSettings();
+</script>
+</body>
+</html>
